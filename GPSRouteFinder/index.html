@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GPS Route Finder</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; line-height: 1.6; margin: 0; padding: 20px; background-color: #f4f4f9; color: #333; }
+        .container { max-width: 800px; margin: auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+        h1, h2 { color: #2c3e50; text-align: center; }
+        .form-group { margin-bottom: 15px; }
+        label { display: block; margin-bottom: 5px; font-weight: bold; }
+        input { width: 100%; padding: 10px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box; }
+        button { padding: 10px 20px; border: none; border-radius: 4px; cursor: pointer; font-size: 16px; transition: background 0.3s; }
+        .btn-primary { background-color: #3498db; color: white; width: 100%; }
+        .btn-primary:hover { background-color: #2980b9; }
+        .btn-secondary { background-color: #e74c3c; color: white; margin-top: 10px; }
+        .btn-secondary:hover { background-color: #c0392b; }
+        #result, #history, #map { margin-top: 20px; padding: 15px; border-radius: 4px; border: 1px solid #eee; }
+        .route-path { font-weight: bold; color: #27ae60; font-size: 1.1em; }
+        .history-item { border-bottom: 1px solid #eee; padding: 10px 0; }
+        .history-item:last-child { border-bottom: none; }
+        .map-location { font-weight: bold; margin-top: 10px; }
+        .map-edge { margin-left: 20px; color: #666; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📍 GPS Route Finder</h1>
+        
+        <div class="form-group">
+            <label for="source">Source City</label>
+            <input type="text" id="source" placeholder="e.g., Delhi">
+        </div>
+        <div class="form-group">
+            <label for="destination">Destination City</label>
+            <input type="text" id="destination" placeholder="e.g., Mumbai">
+        </div>
+        <button class="btn-primary" onclick="findRoute()">Find Optimal Route</button>
+
+        <div id="result" style="display:none;">
+            <h2>Calculation Result</h2>
+            <div id="route-output"></div>
+        </div>
+
+        <div id="history-section">
+            <h2>📜 Route History</h2>
+            <div id="history">Loading history...</div>
+            <button class="btn-secondary" onclick="clearHistory()">Clear History</button>
+        </div>
+
+        <div id="map-section">
+            <h2>🗺️ Map Data</h2>
+            <div id="map">Loading map...</div>
+        </div>
+    </div>
+
+    <script>
+        async function findRoute() {
+            const source = document.getElementById('source').value.trim();
+            const destination = document.getElementById('destination').value.trim();
+            if (!source || !destination) {
+                alert("Please enter both source and destination.");
+                return;
+            }
+
+            const resDiv = document.getElementById('result');
+            const output = document.getElementById('route-output');
+            output.innerHTML = "Calculating...";
+            resDiv.style.display = "block";
+
+            try {
+                const response = await fetch(`/api/route?source=${encodeURIComponent(source)}&dest=${encodeURIComponent(destination)}`);
+                const data = await response.json();
+
+                if (data.found) {
+                    output.innerHTML = `
+                        <p class="route-path">Route: ${data.path.join(' → ')}</p>
+                        <p>Total Distance: <strong>${data.totalDistance.toFixed(1)} km</strong></p>
+                        <p>Estimated Time: <strong>${data.totalTime} minutes</strong></p>
+                    `;
+                    loadHistory();
+                } else {
+                    output.innerHTML = `<p style="color:red;">No route found between ${source} and ${destination}.</p>`;
+                }
+            } catch (error) {
+                output.innerHTML = `<p style="color:red;">Error: ${error.message}</p>`;
+            }
+        }
+
+        async function loadHistory() {
+            const histDiv = document.getElementById('history');
+            try {
+                const response = await fetch('/api/history');
+                const data = await response.json();
+                if (data.length === 0) {
+                    histDiv.innerHTML = "No history available.";
+                } else {
+                    histDiv.innerHTML = data.map(item => `<div class="history-item">${item}</div>`).join('');
+                }
+            } catch (error) {
+                histDiv.innerHTML = "Error loading history.";
+            }
+        }
+
+        async function clearHistory() {
+            if (!confirm("Are you sure you want to clear history?")) return;
+            try {
+                await fetch('/api/clear');
+                loadHistory();
+            } catch (error) {
+                alert("Error clearing history.");
+            }
+        }
+
+        async function loadMap() {
+            const mapDiv = document.getElementById('map');
+            try {
+                const response = await fetch('/api/map');
+                const data = await response.json();
+                let html = "";
+                for (const loc in data) {
+                    html += `<div class="map-location">${loc}</div>`;
+                    data[loc].forEach(edge => {
+                        html += `<div class="map-edge">${edge}</div>`;
+                    });
+                }
+                mapDiv.innerHTML = html;
+            } catch (error) {
+                mapDiv.innerHTML = "Error loading map.";
+            }
+        }
+
+        // Initial Load
+        loadHistory();
+        loadMap();
+    </script>
+</body>
+</html>
